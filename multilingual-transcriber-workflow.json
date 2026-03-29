@@ -1,0 +1,181 @@
+{
+  "name": "Multilingual Audio Transcriber → Email",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "multilingual-transcriber",
+        "options": {}
+      },
+      "id": "webhook-node",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [250, 300],
+      "webhookId": "multilingual-transcriber"
+    },
+    {
+      "parameters": {
+        "resource": "audio",
+        "operation": "translate",
+        "binaryPropertyName": "file",
+        "options": {}
+      },
+      "id": "whisper-node",
+      "name": "OpenAI Whisper - Transcribe & Translate",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.8,
+      "position": [480, 300],
+      "credentials": {
+        "openAiApi": {
+          "id": "YOUR_OPENAI_CREDENTIAL_ID",
+          "name": "OpenAI API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": "gpt-4o-mini",
+        "messages": {
+          "values": [
+            {
+              "content": "You are an expert transcription editor and summariser. You receive English transcripts of audio recordings that were originally spoken in various languages.\n\nIMPORTANT: Format your entire response in clean HTML (no markdown). Use proper HTML tags like <h2>, <p>, <ul>, <li>, <strong>. Do NOT use markdown syntax like ### or **.\n\nStructure your response with these exact sections:\n\n<h2>Clean English Script</h2>\nRewrite the transcript as clear, readable paragraphs using <p> tags. Fix grammar, remove filler words. Keep the original meaning and tone intact.\n\n<h2>Summary</h2>\nWrite a 3-5 sentence summary in a <p> tag covering the main topic, key points discussed, and the overall purpose of the recording.\n\n<h2>Action Items & Assignments</h2>\nList every task, assignment, deadline, or action item mentioned using <ul> and <li> tags. For each one, include what needs to be done, who is responsible (if mentioned), and deadline or timeline (if mentioned). If no action items were found, write 'No specific action items mentioned.'\n\n<h2>Key Details</h2>\nList any important names, tools, platforms, links, or specific technical details mentioned using <ul> and <li> tags.",
+              "role": "system"
+            },
+            {
+              "content": "=Here is the transcript to process:\n\n{{ $json.text }}",
+              "role": "user"
+            }
+          ]
+        },
+        "options": {
+          "temperature": 0.3
+        }
+      },
+      "id": "summarise-node",
+      "name": "OpenAI - Summarise",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.8,
+      "position": [710, 300],
+      "credentials": {
+        "openAiApi": {
+          "id": "YOUR_OPENAI_CREDENTIAL_ID",
+          "name": "OpenAI API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "duplicateItem": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "email-subject",
+              "name": "emailSubject",
+              "value": "=AI automated transcription for the audio file titled \"{{ $('Webhook').item.json.body.title }}\"",
+              "type": "string"
+            },
+            {
+              "id": "email-body",
+              "name": "emailBody",
+              "value": "=<div style=\"font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 680px; margin: 0 auto; color: #1a1a1a; line-height: 1.6;\">\n<div style=\"background: linear-gradient(135deg, #6C5CE7, #a855f7); padding: 24px 32px; border-radius: 12px 12px 0 0;\">\n<h1 style=\"color: #ffffff; margin: 0; font-size: 20px; font-weight: 600;\">Audio Transcription Report</h1>\n<p style=\"color: rgba(255,255,255,0.85); margin: 6px 0 0; font-size: 14px;\">{{ $('Webhook').item.json.body.title }}</p>\n<p style=\"color: rgba(255,255,255,0.6); margin: 4px 0 0; font-size: 12px;\">Source language: {{ $('Webhook').item.json.body.languageName || 'Auto-detected' }}</p>\n</div>\n<div style=\"background: #ffffff; padding: 32px; border: 1px solid #e5e5e5; border-top: none; border-radius: 0 0 12px 12px;\">\n{{ $json.message.content }}\n</div>\n<div style=\"text-align: center; padding: 16px; font-size: 12px; color: #999;\">Generated automatically by Multilingual Transcriber — powered by n8n + OpenAI Whisper</div>\n</div>",
+              "type": "string"
+            },
+            {
+              "id": "audio-title",
+              "name": "audioTitle",
+              "value": "={{ $('Webhook').item.json.body.title }}",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "id": "set-node",
+      "name": "Compose Email",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [940, 300]
+    },
+    {
+      "parameters": {
+        "sendTo": "YOUR_EMAIL@gmail.com",
+        "subject": "={{ $json.emailSubject }}",
+        "emailType": "html",
+        "message": "={{ $json.emailBody }}",
+        "options": {}
+      },
+      "id": "gmail-node",
+      "name": "Gmail - Send Email",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [1170, 300],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "YOUR_GMAIL_CREDENTIAL_ID",
+          "name": "Gmail"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "OpenAI Whisper - Transcribe & Translate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Whisper - Transcribe & Translate": {
+      "main": [
+        [
+          {
+            "node": "OpenAI - Summarise",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI - Summarise": {
+      "main": [
+        [
+          {
+            "node": "Compose Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compose Email": {
+      "main": [
+        [
+          {
+            "node": "Gmail - Send Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "name": "audio-transcription"
+    },
+    {
+      "name": "multilingual"
+    }
+  ],
+  "triggerCount": 1
+}
