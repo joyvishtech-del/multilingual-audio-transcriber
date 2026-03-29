@@ -185,6 +185,13 @@ M4A, MP3, WAV, OGG, FLAC, AAC, WebM, MP4, MPEG — up to 25 MB
 MIT License — free to use, modify, and distribute.
 
 ---
+# Author
+
+Viswaath Ganesan  
+
+Healthcare AI & Medical Imaging Product Leader  
+Exploring Generative AI and Applied AI Workflows.
+
 
 ## 🙏 Acknowledgements
 
