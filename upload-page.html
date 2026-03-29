@@ -1,0 +1,699 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Multilingual Audio Transcriber</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,300&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+<style>
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+
+  :root {
+    --bg: #0C0B0F;
+    --surface: #16141B;
+    --surface-hover: #1E1C24;
+    --border: #2A2830;
+    --border-active: #6C5CE7;
+    --text: #E8E6F0;
+    --text-muted: #8A879A;
+    --accent: #6C5CE7;
+    --accent-glow: rgba(108, 92, 231, 0.25);
+    --success: #00B894;
+    --error: #E17055;
+    --warning: #FDCB6E;
+  }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+    position: relative;
+    overflow-x: hidden;
+  }
+
+  body::before, body::after {
+    content: '';
+    position: fixed;
+    border-radius: 50%;
+    filter: blur(120px);
+    opacity: 0.12;
+    pointer-events: none;
+    z-index: 0;
+  }
+  body::before {
+    width: 500px; height: 500px;
+    background: #6C5CE7;
+    top: -150px; left: -100px;
+    animation: drift1 18s ease-in-out infinite;
+  }
+  body::after {
+    width: 400px; height: 400px;
+    background: #00B894;
+    bottom: -100px; right: -80px;
+    animation: drift2 22s ease-in-out infinite;
+  }
+  @keyframes drift1 { 0%,100%{transform:translate(0,0)} 50%{transform:translate(60px,40px)} }
+  @keyframes drift2 { 0%,100%{transform:translate(0,0)} 50%{transform:translate(-50px,-30px)} }
+
+  .card {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    max-width: 540px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 2.5rem;
+    animation: fadeUp 0.6s ease-out;
+  }
+  @keyframes fadeUp { from{opacity:0;transform:translateY(20px)} to{opacity:1;transform:translateY(0)} }
+
+  .logo-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 0.5rem;
+  }
+  .logo-icon {
+    width: 36px; height: 36px;
+    background: var(--accent);
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .logo-icon svg { width: 20px; height: 20px; }
+
+  h1 {
+    font-family: 'Instrument Serif', serif;
+    font-weight: 400;
+    font-size: 1.65rem;
+    letter-spacing: -0.02em;
+    color: var(--text);
+  }
+  .subtitle {
+    color: var(--text-muted);
+    font-size: 0.88rem;
+    margin-bottom: 1.75rem;
+    line-height: 1.5;
+    font-weight: 300;
+  }
+
+  label.field-label {
+    display: block;
+    font-size: 0.72rem;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-muted);
+    margin-bottom: 0.5rem;
+  }
+
+  .title-input, .lang-select {
+    width: 100%;
+    padding: 0.8rem 1rem;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.95rem;
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    margin-bottom: 1.25rem;
+    -webkit-appearance: none;
+    appearance: none;
+  }
+  .title-input::placeholder { color: var(--text-muted); opacity: 0.5; }
+  .title-input:focus, .lang-select:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-glow);
+  }
+
+  /* Custom select wrapper */
+  .select-wrap {
+    position: relative;
+    margin-bottom: 1.25rem;
+  }
+  .select-wrap::after {
+    content: '';
+    position: absolute;
+    right: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 0; height: 0;
+    border-left: 5px solid transparent;
+    border-right: 5px solid transparent;
+    border-top: 5px solid var(--text-muted);
+    pointer-events: none;
+  }
+  .select-wrap .lang-select {
+    margin-bottom: 0;
+    padding-right: 36px;
+    cursor: pointer;
+  }
+  .select-wrap option { background: var(--surface); color: var(--text); }
+
+  /* Language badge bar */
+  .lang-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    margin-bottom: 1.25rem;
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.4s ease, opacity 0.3s;
+    opacity: 0;
+  }
+  .lang-badges.visible {
+    max-height: 300px;
+    opacity: 1;
+  }
+  .lang-badge {
+    font-size: 0.68rem;
+    padding: 3px 8px;
+    border-radius: 6px;
+    background: rgba(108, 92, 231, 0.08);
+    color: var(--accent);
+    border: 1px solid rgba(108, 92, 231, 0.15);
+    cursor: default;
+    font-weight: 400;
+    letter-spacing: 0.01em;
+    transition: background 0.15s, transform 0.1s;
+  }
+  .lang-badge:hover {
+    background: rgba(108, 92, 231, 0.15);
+    transform: translateY(-1px);
+  }
+  .toggle-langs {
+    background: none;
+    border: none;
+    color: var(--accent);
+    font-size: 0.78rem;
+    cursor: pointer;
+    font-family: 'DM Sans', sans-serif;
+    padding: 0;
+    margin-bottom: 1.25rem;
+    opacity: 0.8;
+    transition: opacity 0.15s;
+  }
+  .toggle-langs:hover { opacity: 1; }
+
+  /* Drop zone */
+  .dropzone {
+    position: relative;
+    border: 2px dashed var(--border);
+    border-radius: 14px;
+    padding: 2.25rem 1.5rem;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.25s, background 0.25s, transform 0.15s;
+    margin-bottom: 1.5rem;
+    background: transparent;
+  }
+  .dropzone:hover, .dropzone.drag-over {
+    border-color: var(--accent);
+    background: rgba(108, 92, 231, 0.04);
+    transform: scale(1.005);
+  }
+  .dropzone.has-file {
+    border-color: var(--success);
+    border-style: solid;
+    background: rgba(0, 184, 148, 0.04);
+  }
+  .dropzone input[type="file"] {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    cursor: pointer;
+  }
+
+  .drop-icon {
+    width: 48px; height: 48px;
+    margin: 0 auto 0.85rem;
+    background: var(--bg);
+    border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    border: 1px solid var(--border);
+    transition: border-color 0.2s, background 0.2s;
+  }
+  .dropzone:hover .drop-icon,
+  .dropzone.drag-over .drop-icon {
+    border-color: var(--accent);
+    background: rgba(108, 92, 231, 0.08);
+  }
+  .dropzone.has-file .drop-icon {
+    border-color: var(--success);
+    background: rgba(0, 184, 148, 0.08);
+  }
+  .drop-icon svg { width: 22px; height: 22px; }
+
+  .drop-text { font-size: 0.9rem; color: var(--text-muted); line-height: 1.6; font-weight: 300; }
+  .drop-text strong { color: var(--accent); font-weight: 500; }
+  .drop-hint { font-size: 0.73rem; color: var(--text-muted); opacity: 0.5; margin-top: 0.35rem; }
+
+  .file-info {
+    display: none;
+    align-items: center;
+    gap: 10px;
+    padding: 0.65rem 1rem;
+    background: var(--bg);
+    border-radius: 10px;
+    margin-top: 0.85rem;
+    font-size: 0.85rem;
+  }
+  .file-info.visible { display: flex; }
+  .file-name { color: var(--text); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .file-size { color: var(--text-muted); font-size: 0.78rem; }
+  .file-remove {
+    background: none; border: none; color: var(--error); cursor: pointer;
+    font-size: 1.1rem; padding: 0 4px; line-height: 1; opacity: 0.7;
+    transition: opacity 0.15s;
+  }
+  .file-remove:hover { opacity: 1; }
+
+  .submit-btn {
+    width: 100%;
+    padding: 0.85rem;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 12px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.95rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.2s, transform 0.1s, box-shadow 0.2s;
+    position: relative;
+    overflow: hidden;
+  }
+  .submit-btn:hover:not(:disabled) {
+    background: #5A4BD4;
+    box-shadow: 0 4px 20px var(--accent-glow);
+    transform: translateY(-1px);
+  }
+  .submit-btn:active:not(:disabled) { transform: translateY(0); }
+  .submit-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .status {
+    margin-top: 1.25rem;
+    padding: 0.75rem 1rem;
+    border-radius: 10px;
+    font-size: 0.85rem;
+    display: none;
+    align-items: center;
+    gap: 8px;
+    line-height: 1.5;
+    animation: fadeUp 0.3s ease-out;
+  }
+  .status.visible { display: flex; }
+  .status.loading { background: rgba(108,92,231,0.08); color: var(--accent); border: 1px solid rgba(108,92,231,0.15); }
+  .status.success { background: rgba(0,184,148,0.08); color: var(--success); border: 1px solid rgba(0,184,148,0.15); }
+  .status.error   { background: rgba(225,112,85,0.08); color: var(--error); border: 1px solid rgba(225,112,85,0.15); }
+
+  .spinner {
+    width: 16px; height: 16px;
+    border: 2px solid var(--accent);
+    border-top-color: transparent;
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    flex-shrink: 0;
+  }
+  @keyframes spin { to{transform:rotate(360deg)} }
+
+  .footer {
+    margin-top: 1.5rem;
+    padding-top: 1.25rem;
+    border-top: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    opacity: 0.6;
+  }
+  .footer svg { width: 14px; height: 14px; opacity: 0.5; }
+
+  @media (max-width: 580px) {
+    .card { padding: 1.75rem; border-radius: 16px; }
+    h1 { font-size: 1.4rem; }
+    .dropzone { padding: 1.75rem 1rem; }
+  }
+</style>
+</head>
+<body>
+
+<div class="card">
+  <div class="logo-row">
+    <div class="logo-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="10"/>
+        <line x1="2" y1="12" x2="22" y2="12"/>
+        <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+      </svg>
+    </div>
+    <h1>Multilingual transcriber</h1>
+  </div>
+  <p class="subtitle">
+    Upload an audio file in any of 57 supported languages and get an English transcription + summary delivered to your inbox.
+  </p>
+
+  <label class="field-label" for="audio-title">Audio title</label>
+  <input type="text" class="title-input" id="audio-title" placeholder="e.g. Team standup — March 29" />
+
+  <label class="field-label" for="lang-select">Source language</label>
+  <div class="select-wrap">
+    <select class="lang-select" id="lang-select">
+      <option value="auto">Auto-detect (recommended)</option>
+      <optgroup label="─── Popular ───">
+        <option value="en">English</option>
+        <option value="zh">Chinese (Mandarin)</option>
+        <option value="es">Spanish</option>
+        <option value="hi">Hindi</option>
+        <option value="ar">Arabic</option>
+        <option value="fr">French</option>
+        <option value="de">German</option>
+        <option value="ja">Japanese</option>
+        <option value="ko">Korean</option>
+        <option value="pt">Portuguese</option>
+        <option value="ru">Russian</option>
+        <option value="ta">Tamil</option>
+      </optgroup>
+      <optgroup label="─── All languages (A–Z) ───">
+        <option value="af">Afrikaans</option>
+        <option value="ar">Arabic</option>
+        <option value="hy">Armenian</option>
+        <option value="az">Azerbaijani</option>
+        <option value="be">Belarusian</option>
+        <option value="bs">Bosnian</option>
+        <option value="bg">Bulgarian</option>
+        <option value="ca">Catalan</option>
+        <option value="zh">Chinese</option>
+        <option value="hr">Croatian</option>
+        <option value="cs">Czech</option>
+        <option value="da">Danish</option>
+        <option value="nl">Dutch</option>
+        <option value="en">English</option>
+        <option value="et">Estonian</option>
+        <option value="fi">Finnish</option>
+        <option value="fr">French</option>
+        <option value="gl">Galician</option>
+        <option value="de">German</option>
+        <option value="el">Greek</option>
+        <option value="he">Hebrew</option>
+        <option value="hi">Hindi</option>
+        <option value="hu">Hungarian</option>
+        <option value="is">Icelandic</option>
+        <option value="id">Indonesian</option>
+        <option value="it">Italian</option>
+        <option value="ja">Japanese</option>
+        <option value="kn">Kannada</option>
+        <option value="kk">Kazakh</option>
+        <option value="ko">Korean</option>
+        <option value="lv">Latvian</option>
+        <option value="lt">Lithuanian</option>
+        <option value="mk">Macedonian</option>
+        <option value="ms">Malay</option>
+        <option value="mr">Marathi</option>
+        <option value="mi">Maori</option>
+        <option value="ne">Nepali</option>
+        <option value="no">Norwegian</option>
+        <option value="fa">Persian</option>
+        <option value="pl">Polish</option>
+        <option value="pt">Portuguese</option>
+        <option value="ro">Romanian</option>
+        <option value="ru">Russian</option>
+        <option value="sr">Serbian</option>
+        <option value="sk">Slovak</option>
+        <option value="sl">Slovenian</option>
+        <option value="es">Spanish</option>
+        <option value="sw">Swahili</option>
+        <option value="sv">Swedish</option>
+        <option value="tl">Tagalog</option>
+        <option value="ta">Tamil</option>
+        <option value="th">Thai</option>
+        <option value="tr">Turkish</option>
+        <option value="uk">Ukrainian</option>
+        <option value="ur">Urdu</option>
+        <option value="vi">Vietnamese</option>
+        <option value="cy">Welsh</option>
+      </optgroup>
+    </select>
+  </div>
+
+  <button class="toggle-langs" id="toggle-langs" type="button">Show all 57 supported languages</button>
+  <div class="lang-badges" id="lang-badges"></div>
+
+  <label class="field-label">Audio file</label>
+  <div class="dropzone" id="dropzone">
+    <input type="file" id="file-input" accept=".m4a,.mp3,.wav,.ogg,.webm,.mp4,.flac,.aac,.mpeg,.mpga">
+    <div class="drop-icon" id="drop-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+        <polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+      </svg>
+    </div>
+    <div class="drop-text">
+      <strong>Click to browse</strong> or drag and drop<br>
+    </div>
+    <div class="drop-hint">M4A, MP3, WAV, OGG, FLAC, MP4, WebM — up to 25 MB</div>
+    <div class="file-info" id="file-info">
+      <span class="file-name" id="file-name"></span>
+      <span class="file-size" id="file-size"></span>
+      <button class="file-remove" id="file-remove" title="Remove file">&times;</button>
+    </div>
+  </div>
+
+  <button class="submit-btn" id="submit-btn" disabled>Transcribe &amp; summarise</button>
+
+  <div class="status" id="status">
+    <span id="status-icon"></span>
+    <span id="status-text"></span>
+  </div>
+
+  <div class="footer">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+    Powered by n8n + OpenAI Whisper &middot; 57 languages supported
+  </div>
+</div>
+
+<script>
+// ─── CONFIG ───────────────────────────────────────────────────────
+// Replace this with your actual n8n Webhook URL after activating the workflow
+const WEBHOOK_URL = 'https://n8n.srv1522015.hstgr.cloud/webhook/multilingual-transcriber';
+// ──────────────────────────────────────────────────────────────────
+
+const ALL_LANGUAGES = [
+  'Afrikaans','Arabic','Armenian','Azerbaijani','Belarusian','Bosnian',
+  'Bulgarian','Catalan','Chinese','Croatian','Czech','Danish','Dutch',
+  'English','Estonian','Finnish','French','Galician','German','Greek',
+  'Hebrew','Hindi','Hungarian','Icelandic','Indonesian','Italian',
+  'Japanese','Kannada','Kazakh','Korean','Latvian','Lithuanian',
+  'Macedonian','Malay','Marathi','Maori','Nepali','Norwegian','Persian',
+  'Polish','Portuguese','Romanian','Russian','Serbian','Slovak',
+  'Slovenian','Spanish','Swahili','Swedish','Tagalog','Tamil','Thai',
+  'Turkish','Ukrainian','Urdu','Vietnamese','Welsh'
+];
+
+const dropzone    = document.getElementById('dropzone');
+const fileInput   = document.getElementById('file-input');
+const fileInfo    = document.getElementById('file-info');
+const fileName    = document.getElementById('file-name');
+const fileSize    = document.getElementById('file-size');
+const fileRemove  = document.getElementById('file-remove');
+const titleInput  = document.getElementById('audio-title');
+const langSelect  = document.getElementById('lang-select');
+const submitBtn   = document.getElementById('submit-btn');
+const statusEl    = document.getElementById('status');
+const statusIcon  = document.getElementById('status-icon');
+const statusText  = document.getElementById('status-text');
+const dropIcon    = document.getElementById('drop-icon');
+const badgesEl    = document.getElementById('lang-badges');
+const toggleBtn   = document.getElementById('toggle-langs');
+
+let selectedFile = null;
+let badgesVisible = false;
+
+// Populate language badges
+ALL_LANGUAGES.forEach(lang => {
+  const span = document.createElement('span');
+  span.className = 'lang-badge';
+  span.textContent = lang;
+  span.addEventListener('click', () => {
+    // Find and select the matching option
+    const options = langSelect.options;
+    for (let i = 0; i < options.length; i++) {
+      if (options[i].textContent.trim() === lang) {
+        langSelect.selectedIndex = i;
+        break;
+      }
+    }
+  });
+  badgesEl.appendChild(span);
+});
+
+toggleBtn.addEventListener('click', () => {
+  badgesVisible = !badgesVisible;
+  badgesEl.classList.toggle('visible', badgesVisible);
+  toggleBtn.textContent = badgesVisible ? 'Hide language list' : 'Show all 57 supported languages';
+});
+
+function formatBytes(bytes) {
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+  return (bytes / 1048576).toFixed(1) + ' MB';
+}
+
+function updateState() {
+  submitBtn.disabled = !(selectedFile && titleInput.value.trim());
+}
+
+function setFile(file) {
+  if (!file) return;
+  if (file.size > 25 * 1024 * 1024) {
+    showStatus('error', 'File exceeds 25 MB limit. Please choose a smaller file.');
+    return;
+  }
+  selectedFile = file;
+  fileName.textContent = file.name;
+  fileSize.textContent = formatBytes(file.size);
+  fileInfo.classList.add('visible');
+  dropzone.classList.add('has-file');
+  dropIcon.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="#00B894" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+  updateState();
+}
+
+function clearFile() {
+  selectedFile = null;
+  fileInput.value = '';
+  fileInfo.classList.remove('visible');
+  dropzone.classList.remove('has-file');
+  dropIcon.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>';
+  updateState();
+}
+
+function showStatus(type, message) {
+  statusEl.className = 'status visible ' + type;
+  if (type === 'loading') {
+    statusIcon.innerHTML = '<div class="spinner"></div>';
+  } else if (type === 'success') {
+    statusIcon.textContent = '\u2713';
+  } else {
+    statusIcon.textContent = '!';
+  }
+  statusText.textContent = message;
+}
+
+function hideStatus() { statusEl.className = 'status'; }
+
+// Drag events
+['dragenter','dragover'].forEach(evt => {
+  dropzone.addEventListener(evt, e => { e.preventDefault(); dropzone.classList.add('drag-over'); });
+});
+['dragleave','drop'].forEach(evt => {
+  dropzone.addEventListener(evt, e => { e.preventDefault(); dropzone.classList.remove('drag-over'); });
+});
+dropzone.addEventListener('drop', e => {
+  const file = e.dataTransfer.files[0];
+  if (file) setFile(file);
+});
+
+fileInput.addEventListener('change', () => {
+  if (fileInput.files[0]) setFile(fileInput.files[0]);
+});
+
+fileRemove.addEventListener('click', e => {
+  e.stopPropagation();
+  clearFile();
+  hideStatus();
+});
+
+titleInput.addEventListener('input', updateState);
+
+// Submit — uses a hidden form + iframe to avoid CORS entirely
+submitBtn.addEventListener('click', () => {
+  if (!selectedFile || !titleInput.value.trim()) return;
+
+  submitBtn.disabled = true;
+  submitBtn.textContent = 'Processing\u2026';
+
+  const selectedLang = langSelect.value;
+  const langName = langSelect.options[langSelect.selectedIndex].textContent.trim();
+  showStatus('loading', 'Uploading ' + langName + ' audio and starting transcription \u2014 this may take a minute\u2026');
+
+  // Create a hidden iframe to receive the response
+  let iframe = document.getElementById('submit-frame');
+  if (iframe) iframe.remove();
+  iframe = document.createElement('iframe');
+  iframe.id = 'submit-frame';
+  iframe.name = 'submit-frame';
+  iframe.style.display = 'none';
+  document.body.appendChild(iframe);
+
+  // Create a hidden form
+  let form = document.getElementById('hidden-form');
+  if (form) form.remove();
+  form = document.createElement('form');
+  form.id = 'hidden-form';
+  form.method = 'POST';
+  form.enctype = 'multipart/form-data';
+  form.action = WEBHOOK_URL;
+  form.target = 'submit-frame';
+  form.style.display = 'none';
+
+  // Title field
+  const titleField = document.createElement('input');
+  titleField.type = 'hidden';
+  titleField.name = 'title';
+  titleField.value = titleInput.value.trim();
+  form.appendChild(titleField);
+
+  // Language field
+  const langField = document.createElement('input');
+  langField.type = 'hidden';
+  langField.name = 'language';
+  langField.value = selectedLang;
+  form.appendChild(langField);
+
+  // Language name (human readable)
+  const langNameField = document.createElement('input');
+  langNameField.type = 'hidden';
+  langNameField.name = 'languageName';
+  langNameField.value = langName;
+  form.appendChild(langNameField);
+
+  // File
+  const fileClone = fileInput.cloneNode(true);
+  fileClone.name = 'file';
+  fileClone.style.display = 'none';
+  form.appendChild(fileClone);
+
+  document.body.appendChild(form);
+
+  iframe.onload = () => {
+    showStatus('success', 'Done! The transcription and summary have been sent to your email.');
+    submitBtn.textContent = 'Sent successfully';
+  };
+
+  iframe.onerror = () => {
+    showStatus('error', 'Something went wrong. Please check your n8n workflow and try again.');
+    submitBtn.disabled = false;
+    submitBtn.textContent = 'Transcribe & summarise';
+  };
+
+  form.submit();
+
+  setTimeout(() => {
+    if (submitBtn.textContent === 'Processing\u2026') {
+      showStatus('success', 'The audio has been sent for processing. Check your email in a few minutes.');
+      submitBtn.textContent = 'Sent successfully';
+    }
+  }, 90000);
+});
+</script>
+</body>
+</html>
